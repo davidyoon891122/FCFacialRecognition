@@ -4,26 +4,29 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
+import androidx.core.app.ComponentActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import com.example.face_recognition.recognition.FaceAnalyzer
+import com.example.face_recognition.recognition.FaceAnalyzerListener
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.Executors
 
 class Camera(private val context: Context) : ActivityCompat.OnRequestPermissionsResultCallback {
-
-
     private val preview by lazy {
         Preview.Builder()
             .build()
             .also {
-                it.surfaceProvider = previewView.surfaceProvider
+                it.setSurfaceProvider(previewView.surfaceProvider)
             }
     }
 
@@ -37,8 +40,11 @@ class Camera(private val context: Context) : ActivityCompat.OnRequestPermissions
     private lateinit var previewView: PreviewView
 
     private var cameraExecutor = Executors.newSingleThreadExecutor()
+    private var listener: FaceAnalyzerListener? = null
 
-    fun initCamera(layout: ViewGroup) {
+    fun initCamera(layout: ViewGroup, listener: FaceAnalyzerListener) {
+        val context = layout.context
+        this.listener = listener
         previewView = PreviewView(context)
         layout.addView(previewView)
         permissionCheck(context)
@@ -58,7 +64,7 @@ class Camera(private val context: Context) : ActivityCompat.OnRequestPermissions
         cameraProviderFuture = ProcessCameraProvider.getInstance(context)
             .also { providerFuture ->
                 providerFuture.addListener({
-
+                    startPreview(context)
                 }, ContextCompat.getMainExecutor(context))
             }
     }
@@ -70,10 +76,43 @@ class Camera(private val context: Context) : ActivityCompat.OnRequestPermissions
             cameraProvider.bindToLifecycle(
                 context as LifecycleOwner,
                 cameraSelector,
-                preview
+                preview,
             )
         } catch (e: Exception) {
-            e.stackTrace
+            Log.e("Camera", "binding failed", e)
+        }
+    }
+
+    fun startFaceDetect() {
+        val cameraProvider = cameraProviderFuture.get()
+        val faceAnalyzer = FaceAnalyzer((context as androidx.activity.ComponentActivity).lifecycle, previewView, listener)
+        val analysisUseCase = ImageAnalysis.Builder()
+            .build()
+            .also {
+                it.setAnalyzer(
+                    cameraExecutor,
+                    faceAnalyzer
+                )
+            }
+
+        try {
+            cameraProvider.bindToLifecycle(
+                context as LifecycleOwner,
+                cameraSelector,
+                preview,
+                analysisUseCase,
+            )
+        } catch (e: Exception) {
+            Log.e("Camera", "binding failed", e)
+        }
+    }
+
+    fun stopFaceDetect() {
+        try {
+            cameraProviderFuture.get().unbindAll()
+            previewView.releasePointerCapture()
+        } catch (e: Exception) {
+            Log.e("Camera", "binding failed", e)
         }
     }
 
@@ -83,21 +122,20 @@ class Camera(private val context: Context) : ActivityCompat.OnRequestPermissions
         grantResults: IntArray
     ) {
         var flag = true
-
         if (grantResults.isNotEmpty()) {
-            for((i, _) in permissions.withIndex()) {
-                if(grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+            for ((i, _) in permissions.withIndex()) {
+                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
                     flag = false
                 }
             }
+
             if (flag) {
                 openPreview()
             } else {
-                Toast.makeText(context, "권한을 허용해야합니다", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "권한을 허용해야합니다.", Toast.LENGTH_SHORT).show()
                 (context as Activity).finish()
             }
+
         }
-
     }
-
 }

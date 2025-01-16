@@ -22,45 +22,52 @@ internal class FaceAnalyzer(
     private val listener: FaceAnalyzerListener?
 ) : ImageAnalysis.Analyzer {
 
-    private var widthScaleFactor = 1F
-    private var heightScaleFactor = 1F
+    private var widthScaleFactor = 1.0f
+    private var heightScaleFactor = 1.0f
 
     private var preCenterX = 0F
     private var preCenterY = 0F
     private var preWidth = 0F
     private var preHeight = 0F
 
-
     private val options = FaceDetectorOptions.Builder()
-        .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-        .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
-        .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-        .setMinFaceSize(0.4F)
+        .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE) //성능
+        .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL) //윤곽선
+        .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL) //표정
+        .setMinFaceSize(0.4f)
         .build()
 
     private val detector = FaceDetection.getClient(options)
+
     private var detectStatus = FaceAnalyzerStatus.Undetect
+
     private val successListener = OnSuccessListener<List<Face>> { faces ->
         val face = faces.firstOrNull()
-
         if (face != null) {
-            if(detectStatus == FaceAnalyzerStatus.Undetect) {
-                detectStatus = FaceAnalyzerStatus.Dectect
+            if (detectStatus == FaceAnalyzerStatus.Undetect) {
+                detectStatus = FaceAnalyzerStatus.Detect
                 listener?.detect()
                 listener?.detectProgress(25F, "얼굴을 인식했습니다.\n왼쪽 눈만 깜빡여주세요.")
-            } else if (detectStatus == FaceAnalyzerStatus.Dectect && (face.leftEyeOpenProbability ?: 0F) > EYE_SUCCESS_VALUE && (face.rightEyeOpenProbability ?: 0F) < EYE_SUCCESS_VALUE) {
+            } else if (detectStatus == FaceAnalyzerStatus.Detect
+                && (face.leftEyeOpenProbability ?: 0F) > EYE_SUCCESS_VALUE
+                && (face.rightEyeOpenProbability ?: 0F) < EYE_SUCCESS_VALUE
+            ) {
                 detectStatus = FaceAnalyzerStatus.LeftWink
                 listener?.detectProgress(50F, "오른쪽 눈만 깜빡여주세요.")
-            } else if (detectStatus == FaceAnalyzerStatus.LeftWink && (face.leftEyeOpenProbability ?: 0F) < EYE_SUCCESS_VALUE && (face.rightEyeOpenProbability ?: 0F) > EYE_SUCCESS_VALUE) {
+            } else if (detectStatus == FaceAnalyzerStatus.LeftWink
+                && (face.leftEyeOpenProbability ?: 0F) < EYE_SUCCESS_VALUE
+                && (face.rightEyeOpenProbability ?: 0F) > EYE_SUCCESS_VALUE
+            ) {
                 detectStatus = FaceAnalyzerStatus.RightWink
                 listener?.detectProgress(75F, "활짝 웃어보세요.")
-            } else if (detectStatus == FaceAnalyzerStatus.RightWink && (face.smilingProbability ?: 0F) > SMILE_SUCCESS_VALUE) {
+            } else if (detectStatus == FaceAnalyzerStatus.RightWink
+                && (face.smilingProbability ?: 0F) > SMILE_SUCCESS_VALUE
+            ) {
                 detectStatus = FaceAnalyzerStatus.Smile
                 listener?.detectProgress(100F, "얼굴 인식이 완료되었습니다.")
                 listener?.stopDetect()
                 detector.close()
             }
-
             calDetectSize(face)
         } else if (detectStatus != FaceAnalyzerStatus.Undetect && detectStatus != FaceAnalyzerStatus.Smile) {
             detectStatus = FaceAnalyzerStatus.Undetect
@@ -108,16 +115,16 @@ internal class FaceAnalyzer(
 
         val width = right - left
         val height = bottom - top
-
         val centerX = left + width / 2
         val centerY = top + height / 2
 
-        if(abs(preCenterX - centerX) > PIVOT_OFFSET
+        if (abs(preCenterX - centerX) > PIVOT_OFFSET
             || abs(preCenterY - centerY) > PIVOT_OFFSET
-            || abs(preWidth  - width) > SIZE_OFFSET
-            || abs(preHeight - height) > SIZE_OFFSET) {
+            || abs(preWidth - width) > SIZE_OFFSET
+            || abs(preHeight - height) > SIZE_OFFSET
+        ) {
             listener?.faceSize(
-                RectF(left,top,right,bottom),
+                RectF(left, top, right, bottom),
                 SizeF(width, height),
                 PointF(centerX, centerY)
             )
@@ -138,5 +145,4 @@ internal class FaceAnalyzer(
         private const val PIVOT_OFFSET = 15
         private const val SIZE_OFFSET = 30
     }
-
 }
